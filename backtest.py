@@ -167,11 +167,55 @@ def run_backtest(df: pd.DataFrame, initial_balance: float = 10_000.0) -> dict:
 # Entry Point
 # ---------------------------------------------------------------------------
 
+def optimize(data: pd.DataFrame, balance: float = 10_000.0):
+    """Testet verschiedene Supertrend-Parameter und zeigt Vergleich."""
+    from strategy import _supertrend, _atr
+    import strategy as st_module
+
+    combos = [
+        (7,  2.0), (7,  3.0),
+        (10, 2.0), (10, 3.0), (10, 4.0),
+        (14, 2.0), (14, 3.0), (14, 4.0),
+    ]
+    results = []
+    original_period = Config.SUPERTREND_PERIOD
+    original_multi  = Config.SUPERTREND_MULTIPLIER
+
+    for period, multi in combos:
+        Config.SUPERTREND_PERIOD     = period
+        Config.SUPERTREND_MULTIPLIER = multi
+        Config.ATR_PERIOD            = period
+        r = run_backtest(data.copy(), initial_balance=balance)
+        if r:
+            results.append({"Periode": period, "Multi": multi, **r})
+
+    Config.SUPERTREND_PERIOD     = original_period
+    Config.SUPERTREND_MULTIPLIER = original_multi
+    Config.ATR_PERIOD            = original_period
+
+    if not results:
+        print("Keine Ergebnisse.")
+        return
+
+    df_r = pd.DataFrame(results).sort_values("profit_factor", ascending=False)
+    print("\n" + "=" * 70)
+    print("  OPTIMIERUNG – Supertrend Parameter")
+    print("=" * 70)
+    print(df_r[["Periode", "Multi", "trades", "win_rate", "profit_factor", "total_pnl", "max_drawdown"]].to_string(index=False))
+    print("=" * 70)
+    best = df_r.iloc[0]
+    print(f"\nBestes Setup: Periode={int(best['Periode'])} | Multi={best['Multi']} | PF={best['profit_factor']:.2f} | P&L={best['total_pnl']:+.2f}€")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Backtest Supertrend + ATR")
-    parser.add_argument("--period",  default="60d",      help="Zeitraum z.B. 30d, 60d (max 60d für 15min)")
-    parser.add_argument("--balance", type=float, default=10_000.0, help="Startkapital in €")
+    parser.add_argument("--period",   default="60d",       help="Zeitraum z.B. 30d, 60d (max 60d für 15min)")
+    parser.add_argument("--balance",  type=float, default=10_000.0, help="Startkapital in €")
+    parser.add_argument("--optimize", action="store_true", help="Parameter-Optimierung (verschiedene Kombinationen testen)")
     args = parser.parse_args()
 
     data = download_data(period=args.period)
-    run_backtest(data, initial_balance=args.balance)
+    if args.optimize:
+        optimize(data, balance=args.balance)
+    else:
+        run_backtest(data, initial_balance=args.balance)

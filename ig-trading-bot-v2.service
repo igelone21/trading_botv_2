@@ -1,0 +1,17 @@
+[Unit]
+Description=IG Trading Bot V2 – Supertrend + ATR
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/user/ig-trading-bot-v2
+ExecStart=/home/user/ig-trading-bot-v2/venv/bin/python3 bot.py
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/user/ig-trading-bot-v2/logs/trading_bot_v2.log
+StandardError=append:/home/user/ig-trading-bot-v2/logs/trading_bot_v2.log
+
+[Install]
+WantedBy=multi-user.target

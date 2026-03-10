@@ -148,7 +148,7 @@ class TradingBotV2:
 
         candles = self.api.get_candles(self.epic, self.resolution, Config.CANDLE_COUNT)
         df = candles_to_dataframe(candles)
-        if df.empty or len(df) < Config.BB_PERIOD + 10:
+        if df.empty or len(df) < Config.SUPERTREND_PERIOD + 10:
             logger.warning("Zu wenige Kerzen (%d). Signal-Analyse übersprungen.", len(df))
             return
 
