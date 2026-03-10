@@ -143,9 +143,17 @@ class TradingBotV2:
             return
         mid_price = (bid + offer) / 2
 
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        logger.info(
+            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f",
+            last.get("rsi", 0), last.get("close", 0),
+            last.get("bb_lower", 0), last.get("bb_upper", 0), last.get("atr", 0),
+        )
+
         setup = generate_trade_setup(df, mid_price)
         if setup is None:
-            logger.debug("Kein Trade-Signal auf %s.", self.epic)
+            logger.info("Kein Trade-Signal auf %s.", self.epic)
             return
 
         valid, reason = self.risk.validate_setup(setup)
