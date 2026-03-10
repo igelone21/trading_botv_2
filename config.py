@@ -30,10 +30,10 @@ class Config:
     BB_PERIOD = 20           # Bollinger Band Periode
     BB_STDDEV = 2.0          # Bollinger Band Standardabweichungen
     RSI_PERIOD = 14
-    RSI_OVERSOLD = 30.0      # RSI-Level für Überverkauft (Long-Signal)
-    RSI_OVERSOLD_EXIT = 35.0 # RSI muss darüber steigen für Long-Entry
-    RSI_OVERBOUGHT = 70.0    # RSI-Level für Überkauft (Short-Signal)
-    RSI_OVERBOUGHT_EXIT = 65.0  # RSI muss darunter fallen für Short-Entry
+    RSI_OVERSOLD = 40.0         # RSI-Level für Überverkauft (Long-Signal)  – war 30
+    RSI_OVERSOLD_EXIT = 45.0    # RSI muss darüber steigen für Long-Entry    – war 35
+    RSI_OVERBOUGHT = 60.0       # RSI-Level für Überkauft (Short-Signal)     – war 70
+    RSI_OVERBOUGHT_EXIT = 55.0  # RSI muss darunter fallen für Short-Entry   – war 65
     ATR_PERIOD = 14
     ATR_STOP_MULTIPLIER = 1.5
     ATR_BREAKEVEN_MULTIPLIER = 1.0
