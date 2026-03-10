@@ -137,17 +137,36 @@ class IGApi:
 
     def get_candles(self, epic: str, resolution: str, count: int) -> list[dict]:
         """
-        Lädt historische Kerzen.
-        resolution: MINUTE, MINUTE_2, MINUTE_3, MINUTE_5, MINUTE_10,
-                    MINUTE_15, MINUTE_30, HOUR, HOUR_2, HOUR_3, HOUR_4, DAY, WEEK, MONTH
+        Lädt historische Kerzen via Yahoo Finance (^GDAXI).
+        resolution wird auf yfinance-Intervall gemappt.
         """
-        path = f"/prices/{epic}"
-        params = {"resolution": resolution, "max": count}
-        try:
-            data = self._get(path, version="3", params=params)
-        except IGApiError:
-            data = self._get(path, version="1", params=params)
-        return data.get("prices", [])
+        import yfinance as yf
+
+        interval_map = {
+            "MINUTE": "1m", "MINUTE_2": "2m", "MINUTE_5": "5m",
+            "MINUTE_15": "15m", "MINUTE_30": "30m",
+            "HOUR": "1h", "HOUR_4": "4h", "DAY": "1d",
+        }
+        interval = interval_map.get(resolution, "15m")
+        period = "5d" if "MINUTE" in resolution else "60d"
+
+        ticker = yf.Ticker("^GDAXI")
+        df = ticker.history(period=period, interval=interval)
+        if df.empty:
+            return []
+
+        df = df.tail(count).reset_index()
+        candles = []
+        for _, row in df.iterrows():
+            candles.append({
+                "snapshotTime": str(row.get("Datetime", row.get("Date", ""))),
+                "openPrice":  {"bid": float(row["Open"]),  "ask": float(row["Open"])},
+                "highPrice":  {"bid": float(row["High"]),  "ask": float(row["High"])},
+                "lowPrice":   {"bid": float(row["Low"]),   "ask": float(row["Low"])},
+                "closePrice": {"bid": float(row["Close"]), "ask": float(row["Close"])},
+                "lastTradedVolume": float(row.get("Volume", 0)),
+            })
+        return candles
 
     def get_market_details(self, epic: str) -> dict:
         """Gibt Marktdetails inkl. min. Deal Size, Pip-Wert, Spread zurück."""
