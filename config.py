@@ -26,18 +26,13 @@ class Config:
     TRADING_EPIC = os.getenv("TRADING_EPIC", "IX.D.DAX.IFD.IP")
     TRADING_RESOLUTION = os.getenv("TRADING_RESOLUTION", "MINUTE_15")
 
-    # Strategie-Parameter (RSI Mean Reversion + Bollinger Bands)
-    BB_PERIOD = 20           # Bollinger Band Periode
-    BB_STDDEV = 2.0          # Bollinger Band Standardabweichungen
-    RSI_PERIOD = 14
-    RSI_OVERSOLD = 40.0         # RSI-Level für Überverkauft (Long-Signal)  – war 30
-    RSI_OVERSOLD_EXIT = 45.0    # RSI muss darüber steigen für Long-Entry    – war 35
-    RSI_OVERBOUGHT = 60.0       # RSI-Level für Überkauft (Short-Signal)     – war 70
-    RSI_OVERBOUGHT_EXIT = 55.0  # RSI muss darunter fallen für Short-Entry   – war 65
-    ATR_PERIOD = 14
-    ATR_STOP_MULTIPLIER = 1.5
-    ATR_BREAKEVEN_MULTIPLIER = 1.0
-    EMA_TREND_PERIOD = 50        # 50×15min = ~12h Intraday-Trendfilter (LONG wenn > EMA, SHORT wenn < EMA)
+    # Strategie-Parameter (Supertrend + ATR)
+    SUPERTREND_PERIOD     = 10    # ATR-Periode für Supertrend
+    SUPERTREND_MULTIPLIER = 3.0   # Multiplikator (höher = weniger Signale, ruhiger)
+    ATR_PERIOD            = 10    # ATR-Periode für Stop/TP (= SUPERTREND_PERIOD)
+    ATR_STOP_MULTIPLIER   = 1.5   # Stop  = 1.5 × ATR vom Entry
+    ATR_TP_MULTIPLIER     = 3.0   # TP    = 3.0 × ATR vom Entry  →  R/R = 2.0
+    ATR_BREAKEVEN_MULTIPLIER = 1.0  # Breakeven wenn Profit ≥ 1 × ATR
 
     # Risikomanagement
     RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))

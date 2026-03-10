@@ -160,12 +160,11 @@ class TradingBotV2:
 
         df = add_indicators(df)
         last = df.iloc[-1]
+        trend = "BULL" if int(last.get("st_dir", 0)) == 1 else "BEAR"
         logger.info(
-            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f | EMA50=%.1f | Trend=%s",
-            last.get("rsi", 0), last.get("close", 0),
-            last.get("bb_lower", 0), last.get("bb_upper", 0), last.get("atr", 0),
-            last.get("ema200", 0),
-            "UP" if last.get("close", 0) > last.get("ema200", 0) else "DOWN",
+            "Indikatoren: Close=%.1f | Supertrend=%.1f | ATR=%.1f | Trend=%s",
+            last.get("close", 0), last.get("supertrend", 0),
+            last.get("atr", 0), trend,
         )
 
         setup = generate_trade_setup(df, mid_price)
@@ -277,12 +276,13 @@ class TradingBotV2:
     def start(self) -> None:
         logger.info("=" * 60)
         logger.info("IG Trading Bot V2 startet")
-        logger.info("  Strategie:  RSI Mean Reversion + Bollinger Bands")
+        logger.info("  Strategie:  Supertrend + ATR")
         logger.info("  Epic:       %s", self.epic)
         logger.info("  Auflösung: %s", self.resolution)
-        logger.info("  BB Periode: %d | StdDev: %.1f", Config.BB_PERIOD, Config.BB_STDDEV)
-        logger.info("  RSI Oversold: <%.0f → >%.0f", Config.RSI_OVERSOLD, Config.RSI_OVERSOLD_EXIT)
-        logger.info("  RSI Overbought: >%.0f → <%.0f", Config.RSI_OVERBOUGHT, Config.RSI_OVERBOUGHT_EXIT)
+        logger.info("  Supertrend: Periode=%d | Multiplikator=%.1f", Config.SUPERTREND_PERIOD, Config.SUPERTREND_MULTIPLIER)
+        logger.info("  Stop:       %.1f × ATR | TP: %.1f × ATR | R/R=%.1f",
+                    Config.ATR_STOP_MULTIPLIER, Config.ATR_TP_MULTIPLIER,
+                    Config.ATR_TP_MULTIPLIER / Config.ATR_STOP_MULTIPLIER)
         logger.info("  Risiko:     %.1f%% pro Trade", Config.RISK_PER_TRADE_PCT)
         logger.info("  Interval:   %ds", Config.CHECK_INTERVAL_SECONDS)
         logger.info("  Account:    %s (%s)", Config.IG_ACCOUNT_ID, Config.IG_ACCOUNT_TYPE)
