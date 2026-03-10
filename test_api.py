@@ -9,17 +9,13 @@ r = requests.post(f"{base}/session", json={"identifier": Config.IG_USERNAME, "pa
 r.raise_for_status()
 cst = r.headers["CST"]
 token = r.headers["X-SECURITY-TOKEN"]
-print("Login OK, Account:", r.json().get("currentAccountId"))
-print("Account Type:", r.json().get("accountType"))
-print("Accounts:", [a.get("accountId") + "/" + a.get("accountType","") for a in r.json().get("accounts",[])])
+print("Login OK")
 
 h = {"X-IG-API-KEY": key, "CST": cst, "X-SECURITY-TOKEN": token, "Content-Type": "application/json", "Version": "1"}
 
-# Test verschiedene DAX epics
-epics = ["IX.D.DAX.IFD.IP", "IX.D.DAX.CASH.IP", "IX.D.DAX.DAILY.IP", "CC.D.DAX.USS.IP"]
-for epic in epics:
-    resp = requests.get(f"{base}/markets/{epic}", headers=h, timeout=10)
-    print(f"markets/{epic} → {resp.status_code}")
-    if resp.status_code == 200:
-        snap = resp.json().get("snapshot", {})
-        print(f"  Bid: {snap.get('bid')} Offer: {snap.get('offer')}")
+# Suche nach Deutschland/DAX
+resp = requests.get(f"{base}/markets?searchTerm=Deutschland+40", headers=h, timeout=10)
+print(f"Suche → {resp.status_code}")
+if resp.status_code == 200:
+    for m in resp.json().get("markets", []):
+        print(f"  Epic: {m.get('epic')} | Name: {m.get('instrumentName')} | Type: {m.get('instrumentType')}")
