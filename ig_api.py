@@ -187,10 +187,7 @@ class IGApi:
 
     def get_open_positions(self) -> list[dict]:
         """Gibt alle offenen Positionen zurück."""
-        try:
-            data = self._get("/positions/otc", version="2")
-        except IGApiError:
-            data = self._get("/positions", version="2")
+        data = self._get("/positions", version="2")
         return data.get("positions", [])
 
     def open_position(
