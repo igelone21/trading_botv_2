@@ -40,7 +40,8 @@ class Config:
 
     # Risikomanagement
     RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))
-    MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "1"))
+    MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "1"))   # Gleichzeitige Positionen (1 = nur eine auf einmal)
+    MIN_ACCOUNT_BALANCE = float(os.getenv("MIN_ACCOUNT_BALANCE", "500.0"))  # Mindestkapital für neuen Trade
 
     # Wie viele Candles werden geladen
     CANDLE_COUNT = 100

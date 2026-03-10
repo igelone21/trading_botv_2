@@ -12,7 +12,8 @@ Ablauf jedes Zyklus:
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, time as dtime
+import pytz
 
 import schedule
 
@@ -124,8 +125,22 @@ class TradingBotV2:
     # Trade-Ausführung
     # ------------------------------------------------------------------
 
+    def is_trading_hours(self) -> bool:
+        """Prüft ob aktuelle Zeit innerhalb der Handelszeiten liegt (Mo-Fr 09:00-17:30 MEZ)."""
+        tz = pytz.timezone("Europe/Berlin")
+        now = datetime.now(tz)
+        if now.weekday() >= 5:  # Samstag=5, Sonntag=6
+            return False
+        market_open = dtime(9, 0)
+        market_close = dtime(17, 30)
+        return market_open <= now.time() <= market_close
+
     def try_open_trade(self, open_positions: list[dict]) -> None:
         """Prüft Signal und öffnet ggf. eine neue Position."""
+        if not self.is_trading_hours():
+            logger.info("Außerhalb der Handelszeiten (Mo-Fr 09:00-17:30). Kein neuer Trade.")
+            return
+
         allowed, reason = self.risk.can_open_new_trade(open_positions, self.epic)
         if not allowed:
             logger.debug("Kein neuer Trade: %s", reason)
@@ -163,8 +178,15 @@ class TradingBotV2:
 
         balance_data = self.api.get_account_balance()
         available = float(balance_data.get("available", 0))
+        logger.info("Verfügbares Kapital: %.2f€", available)
         if available <= 0:
-            logger.error("Kein verfügbares Kapital (%.2f). Trade abgebrochen.", available)
+            logger.error("Kein verfügbares Kapital (%.2f€). Trade abgebrochen.", available)
+            return
+        if available < Config.MIN_ACCOUNT_BALANCE:
+            logger.warning(
+                "Kapital zu niedrig: %.2f€ (Minimum: %.2f€). Trade abgebrochen.",
+                available, Config.MIN_ACCOUNT_BALANCE,
+            )
             return
 
         market_details = self.api.get_market_details(self.epic)
