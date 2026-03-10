@@ -59,9 +59,9 @@ pdf.set_text_color(20, 20, 150)
 paths = [
     ('Bot-Verzeichnis', '/home/user/ig-trading-bot-v2/'),
     ('Hauptskript',     '/home/user/ig-trading-bot-v2/bot.py'),
-    ('Log-Datei',       '/home/user/ig-trading-bot-v2/logs/trading.log'),
+    ('Log-Datei',       '/home/user/ig-trading-bot-v2/logs/trading_bot_v2.log'),
     ('Config',          '/home/user/ig-trading-bot-v2/config.py'),
-    ('Service',         'ig-trading-bot  (systemd)'),
+    ('Service',         'ig-trading-bot-v2  (systemd)'),
 ]
 for label, path in paths:
     pdf.set_font('Helvetica', '', 9)
@@ -89,11 +89,11 @@ for i, (c, d) in enumerate(cmds):
 pdf.section_title('2', 'Dateien anzeigen - cat, tail -f, grep')
 cmds = [
     ('cat config.py', 'Datei vollständig ausgeben'),
-    ('tail -f logs/trading.log', 'Log live verfolgen (Strg+C zum Beenden)'),
-    ('tail -n 50 logs/trading.log', 'Letzte 50 Zeilen anzeigen'),
-    ('grep "ERROR" logs/trading.log', 'Nur Fehler-Zeilen filtern'),
-    ('grep -i "trade" logs/trading.log', 'Trade-Zeilen (Groß-/Kleinschreibung egal)'),
-    ('grep "ERROR" logs/trading.log | tail -20', 'Letzte 20 Fehler'),
+    ('tail -f logs/trading_bot_v2.log', 'Log live verfolgen (Strg+C zum Beenden)'),
+    ('tail -n 50 logs/trading_bot_v2.log', 'Letzte 50 Zeilen anzeigen'),
+    ('grep "ERROR" logs/trading_bot_v2.log', 'Nur Fehler-Zeilen filtern'),
+    ('grep -i "trade" logs/trading_bot_v2.log', 'Trade-Zeilen (Gross-/Kleinschreibung egal)'),
+    ('grep "ERROR" logs/trading_bot_v2.log | tail -20', 'Letzte 20 Fehler'),
 ]
 for i, (c, d) in enumerate(cmds):
     pdf.cmd_row(c, d, i % 2 == 0)
@@ -117,28 +117,28 @@ for i, (k, d) in enumerate(keys):
 # ── 4 Bot-Steuerung ───────────────────────────────────────────
 pdf.section_title('4', 'Bot-Steuerung - systemctl')
 cmds = [
-    ('systemctl start ig-trading-bot', 'Bot starten'),
-    ('systemctl stop ig-trading-bot', 'Bot stoppen'),
-    ('systemctl restart ig-trading-bot', 'Bot neu starten'),
-    ('systemctl status ig-trading-bot', 'Status anzeigen'),
-    ('systemctl enable ig-trading-bot', 'Autostart beim Booten aktivieren'),
-    ('systemctl disable ig-trading-bot', 'Autostart deaktivieren'),
-    ('journalctl -u ig-trading-bot -f', 'Service-Logs live verfolgen'),
+    ('systemctl start ig-trading-bot-v2', 'Bot starten'),
+    ('systemctl stop ig-trading-bot-v2', 'Bot stoppen'),
+    ('systemctl restart ig-trading-bot-v2', 'Bot neu starten'),
+    ('systemctl status ig-trading-bot-v2', 'Status anzeigen'),
+    ('systemctl enable ig-trading-bot-v2', 'Autostart beim Booten aktivieren'),
+    ('systemctl disable ig-trading-bot-v2', 'Autostart deaktivieren'),
+    ('journalctl -u ig-trading-bot-v2 -f', 'Service-Logs live verfolgen'),
 ]
 for i, (c, d) in enumerate(cmds):
     pdf.cmd_row(c, d, i % 2 == 0)
 pdf.ln(1)
-pdf.info_box('Tipp: Nach Änderungen an bot.py immer "systemctl restart ig-trading-bot" ausführen!')
+pdf.info_box('Tipp: Nach Änderungen an bot.py immer "systemctl restart ig-trading-bot-v2" ausfuehren!')
 
 # ── 5 Log-Datei ───────────────────────────────────────────────
 pdf.section_title('5', 'Log-Datei - Live-Log, Fehler filtern')
 cmds = [
-    ('tail -f logs/trading.log', 'Live-Log verfolgen'),
-    ('tail -f logs/trading.log | grep ERROR', 'Nur Fehler live'),
-    ('grep "ERROR\\|WARNING" logs/trading.log', 'Fehler + Warnungen'),
-    ('grep "$(date +%Y-%m-%d)" logs/trading.log', 'Nur heutige Einträge'),
-    ('wc -l logs/trading.log', 'Anzahl Log-Zeilen'),
-    ('> logs/trading.log', 'Log-Datei leeren (Vorsicht!)'),
+    ('tail -f logs/trading_bot_v2.log', 'Live-Log verfolgen'),
+    ('tail -f logs/trading_bot_v2.log | grep ERROR', 'Nur Fehler live'),
+    ('grep "ERROR" logs/trading_bot_v2.log', 'Fehler filtern'),
+    ('tail -n 100 logs/trading_bot_v2.log', 'Letzte 100 Zeilen'),
+    ('wc -l logs/trading_bot_v2.log', 'Anzahl Log-Zeilen'),
+    ('> logs/trading_bot_v2.log', 'Log-Datei leeren (Vorsicht!)'),
 ]
 for i, (c, d) in enumerate(cmds):
     pdf.cmd_row(c, d, i % 2 == 0)
@@ -190,11 +190,11 @@ pdf.set_font('Helvetica', 'B', 10)
 pdf.cell(0, 8, '  + Schnellreferenz - Die 5 wichtigsten Befehle', fill=True, ln=True)
 pdf.set_text_color(0, 0, 0)
 top5 = [
-    ('systemctl status ig-trading-bot', 'Läuft der Bot?'),
-    ('tail -f logs/trading.log', 'Was passiert gerade?'),
-    ('systemctl restart ig-trading-bot', 'Bot neu starten'),
-    ('git pull origin main', 'Updates holen'),
-    ('grep "ERROR" logs/trading.log | tail', 'Letzte Fehler prüfen'),
+    ('systemctl status ig-trading-bot-v2', 'Laeuft der Bot?'),
+    ('tail -f logs/trading_bot_v2.log', 'Was passiert gerade?'),
+    ('systemctl restart ig-trading-bot-v2', 'Bot neu starten'),
+    ('systemctl stop ig-trading-bot-v2', 'Bot stoppen'),
+    ('grep "ERROR" logs/trading_bot_v2.log | tail', 'Letzte Fehler pruefen'),
 ]
 for i, (c, d) in enumerate(top5):
     pdf.cmd_row(c, d, i % 2 == 0)
