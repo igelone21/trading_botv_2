@@ -17,6 +17,23 @@ from config import Config
 from strategy import add_indicators, detect_signal, Signal
 
 
+def detect_signal_no_ema(df) -> Signal:
+    """detect_signal ohne EMA-Trendfilter – für Backtest-Vergleich."""
+    if len(df) < Config.BB_PERIOD + 5:
+        return None
+    prev = df.iloc[-3]
+    curr = df.iloc[-2]
+    rsi_prev, rsi_curr = prev["rsi"], curr["rsi"]
+    close, bb_upper, bb_lower, atr = curr["close"], curr["bb_upper"], curr["bb_lower"], curr["atr"]
+    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr]):
+        return None
+    if rsi_prev < Config.RSI_OVERSOLD and rsi_curr > Config.RSI_OVERSOLD_EXIT and close <= bb_lower + 0.5 * atr:
+        return Signal.LONG
+    if rsi_prev > Config.RSI_OVERBOUGHT and rsi_curr < Config.RSI_OVERBOUGHT_EXIT and close >= bb_upper - 0.5 * atr:
+        return Signal.SHORT
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Hilfsfunktionen
 # ---------------------------------------------------------------------------
@@ -50,8 +67,9 @@ def is_trading_hours(ts: pd.Timestamp) -> bool:
 # Backtest-Engine
 # ---------------------------------------------------------------------------
 
-def run_backtest(df: pd.DataFrame, initial_balance: float = 10_000.0) -> dict:
+def run_backtest(df: pd.DataFrame, initial_balance: float = 10_000.0, use_ema_filter: bool = True) -> dict:
     df = add_indicators(df)
+    print(f"  EMA{Config.EMA_TREND_PERIOD}-Filter: {'AN' if use_ema_filter else 'AUS'}")
     balance = initial_balance
     trades = []
     open_trade = None
@@ -88,7 +106,7 @@ def run_backtest(df: pd.DataFrame, initial_balance: float = 10_000.0) -> dict:
 
         # Kein offener Trade → Signal prüfen
         if open_trade is None and is_trading_hours(ts):
-            signal = detect_signal(window)
+            signal = detect_signal(window) if use_ema_filter else detect_signal_no_ema(window)
             if signal is not None:
                 atr  = float(window.iloc[-2]["atr"])
                 bb_mid = float(window.iloc[-2]["bb_mid"])
@@ -159,10 +177,19 @@ def run_backtest(df: pd.DataFrame, initial_balance: float = 10_000.0) -> dict:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Backtest RSI+BB+EMA200 Strategie")
+    parser = argparse.ArgumentParser(description="Backtest RSI+BB+EMA Strategie")
     parser.add_argument("--period", default="60d", help="Zeitraum z.B. 30d, 60d (max 60d für 15min)")
     parser.add_argument("--balance", type=float, default=10_000.0, help="Startkapital in €")
+    parser.add_argument("--no-ema", action="store_true", help="EMA-Trendfilter deaktivieren")
+    parser.add_argument("--compare", action="store_true", help="Beide Varianten (mit/ohne EMA) vergleichen")
     args = parser.parse_args()
 
     data = download_data(period=args.period)
-    run_backtest(data, initial_balance=args.balance)
+
+    if args.compare:
+        print("\n>>> VARIANTE 1: Ohne EMA-Filter (Basis-Strategie)")
+        run_backtest(data, initial_balance=args.balance, use_ema_filter=False)
+        print(f"\n>>> VARIANTE 2: Mit EMA{Config.EMA_TREND_PERIOD}-Filter")
+        run_backtest(data, initial_balance=args.balance, use_ema_filter=True)
+    else:
+        run_backtest(data, initial_balance=args.balance, use_ema_filter=not args.no_ema)

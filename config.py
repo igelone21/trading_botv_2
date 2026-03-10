@@ -37,7 +37,7 @@ class Config:
     ATR_PERIOD = 14
     ATR_STOP_MULTIPLIER = 1.5
     ATR_BREAKEVEN_MULTIPLIER = 1.0
-    EMA_TREND_PERIOD = 200       # Nur LONG wenn Preis > EMA200, nur SHORT wenn Preis < EMA200
+    EMA_TREND_PERIOD = 50        # 50×15min = ~12h Intraday-Trendfilter (LONG wenn > EMA, SHORT wenn < EMA)
 
     # Risikomanagement
     RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))

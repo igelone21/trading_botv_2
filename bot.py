@@ -161,7 +161,7 @@ class TradingBotV2:
         df = add_indicators(df)
         last = df.iloc[-1]
         logger.info(
-            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f | EMA200=%.1f | Trend=%s",
+            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f | EMA50=%.1f | Trend=%s",
             last.get("rsi", 0), last.get("close", 0),
             last.get("bb_lower", 0), last.get("bb_upper", 0), last.get("atr", 0),
             last.get("ema200", 0),
