@@ -169,7 +169,7 @@ class IGApi:
 
     def get_open_positions(self) -> list[dict]:
         """Gibt alle offenen Positionen zurück."""
-        data = self._get("/positions/otc", version="2")
+        data = self._get("/positions/otc", version="1")
         return data.get("positions", [])
 
     def open_position(
