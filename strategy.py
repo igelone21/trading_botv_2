@@ -112,7 +112,7 @@ def _atr(df: pd.DataFrame, period: int) -> pd.Series:
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Fügt RSI, Bollinger Bands und ATR zum DataFrame hinzu."""
+    """Fügt RSI, Bollinger Bands, ATR und 200 EMA zum DataFrame hinzu."""
     df = df.copy()
     df["rsi"] = _rsi(df["close"], Config.RSI_PERIOD)
     bb_upper, bb_mid, bb_lower = _bollinger_bands(df["close"], Config.BB_PERIOD, Config.BB_STDDEV)
@@ -120,6 +120,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["bb_mid"] = bb_mid
     df["bb_lower"] = bb_lower
     df["atr"] = _atr(df, Config.ATR_PERIOD)
+    df["ema200"] = df["close"].ewm(span=Config.EMA_TREND_PERIOD, adjust=False).mean()
     return df
 
 
@@ -147,28 +148,33 @@ def detect_signal(df: pd.DataFrame) -> Optional[Signal]:
     bb_lower = curr["bb_lower"]
     atr = curr["atr"]
 
-    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr]):
+    ema200 = curr["ema200"]
+
+    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr, ema200]):
         return None
 
-    # LONG: RSI erholt sich aus Überverkauft-Zone
+    in_uptrend = close > ema200    # Preis über EMA200 → Aufwärtstrend
+    in_downtrend = close < ema200  # Preis unter EMA200 → Abwärtstrend
+
+    # LONG: RSI erholt sich aus Überverkauft-Zone UND Aufwärtstrend
     rsi_long_trigger = rsi_prev < Config.RSI_OVERSOLD and rsi_curr > Config.RSI_OVERSOLD_EXIT
     price_near_lower_bb = close <= bb_lower + 0.5 * atr
 
-    if rsi_long_trigger and price_near_lower_bb:
+    if rsi_long_trigger and price_near_lower_bb and in_uptrend:
         logger.info(
-            "LONG-Signal: RSI %.1f → %.1f (Oversold-Recovery) | Close=%.2f | BB_lower=%.2f",
-            rsi_prev, rsi_curr, close, bb_lower,
+            "LONG-Signal: RSI %.1f → %.1f | Close=%.2f | BB_lower=%.2f | EMA200=%.2f (Uptrend ✓)",
+            rsi_prev, rsi_curr, close, bb_lower, ema200,
         )
         return Signal.LONG
 
-    # SHORT: RSI fällt aus Überkauft-Zone
+    # SHORT: RSI fällt aus Überkauft-Zone UND Abwärtstrend
     rsi_short_trigger = rsi_prev > Config.RSI_OVERBOUGHT and rsi_curr < Config.RSI_OVERBOUGHT_EXIT
     price_near_upper_bb = close >= bb_upper - 0.5 * atr
 
-    if rsi_short_trigger and price_near_upper_bb:
+    if rsi_short_trigger and price_near_upper_bb and in_downtrend:
         logger.info(
-            "SHORT-Signal: RSI %.1f → %.1f (Overbought-Recovery) | Close=%.2f | BB_upper=%.2f",
-            rsi_prev, rsi_curr, close, bb_upper,
+            "SHORT-Signal: RSI %.1f → %.1f | Close=%.2f | BB_upper=%.2f | EMA200=%.2f (Downtrend ✓)",
+            rsi_prev, rsi_curr, close, bb_upper, ema200,
         )
         return Signal.SHORT
 

@@ -131,14 +131,14 @@ class TradingBotV2:
         now = datetime.now(tz)
         if now.weekday() >= 5:  # Samstag=5, Sonntag=6
             return False
-        market_open = dtime(9, 0)
-        market_close = dtime(17, 30)
+        market_open = dtime(9, 30)   # Erste 30 Min (09:00-09:30) meiden – zu volatil
+        market_close = dtime(17, 15) # Letzte 15 Min vor Schluss meiden
         return market_open <= now.time() <= market_close
 
     def try_open_trade(self, open_positions: list[dict]) -> None:
         """Prüft Signal und öffnet ggf. eine neue Position."""
         if not self.is_trading_hours():
-            logger.info("Außerhalb der Handelszeiten (Mo-Fr 09:00-17:30). Kein neuer Trade.")
+            logger.info("Außerhalb der Handelszeiten (Mo-Fr 09:30-17:15). Kein neuer Trade.")
             return
 
         allowed, reason = self.risk.can_open_new_trade(open_positions, self.epic)
@@ -161,9 +161,11 @@ class TradingBotV2:
         df = add_indicators(df)
         last = df.iloc[-1]
         logger.info(
-            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f",
+            "Indikatoren: RSI=%.1f | Close=%.1f | BB_low=%.1f | BB_high=%.1f | ATR=%.1f | EMA200=%.1f | Trend=%s",
             last.get("rsi", 0), last.get("close", 0),
             last.get("bb_lower", 0), last.get("bb_upper", 0), last.get("atr", 0),
+            last.get("ema200", 0),
+            "UP" if last.get("close", 0) > last.get("ema200", 0) else "DOWN",
         )
 
         setup = generate_trade_setup(df, mid_price)
