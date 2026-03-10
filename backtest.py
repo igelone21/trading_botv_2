@@ -19,17 +19,19 @@ from strategy import add_indicators, detect_signal, Signal
 
 def detect_signal_no_ema(df) -> Signal:
     """detect_signal ohne EMA-Trendfilter – für Backtest-Vergleich."""
-    if len(df) < Config.BB_PERIOD + 5:
+    if len(df) < Config.BB_PERIOD + 7:
         return None
-    prev = df.iloc[-3]
-    curr = df.iloc[-2]
-    rsi_prev, rsi_curr = prev["rsi"], curr["rsi"]
+    curr     = df.iloc[-2]
+    lookback = df.iloc[-7:-2]
+    rsi_curr = curr["rsi"]
     close, bb_upper, bb_lower, atr = curr["close"], curr["bb_upper"], curr["bb_lower"], curr["atr"]
-    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr]):
+    if any(pd.isna(x) for x in [rsi_curr, bb_upper, bb_lower, atr]):
         return None
-    if rsi_prev < Config.RSI_OVERSOLD and rsi_curr > Config.RSI_OVERSOLD_EXIT and close <= bb_lower + 0.5 * atr:
+    if lookback["rsi"].isna().all():
+        return None
+    if (lookback["rsi"] < Config.RSI_OVERSOLD).any() and rsi_curr > Config.RSI_OVERSOLD_EXIT and close <= bb_lower + 1.0 * atr:
         return Signal.LONG
-    if rsi_prev > Config.RSI_OVERBOUGHT and rsi_curr < Config.RSI_OVERBOUGHT_EXIT and close >= bb_upper - 0.5 * atr:
+    if (lookback["rsi"] > Config.RSI_OVERBOUGHT).any() and rsi_curr < Config.RSI_OVERBOUGHT_EXIT and close >= bb_upper - 1.0 * atr:
         return Signal.SHORT
     return None
 

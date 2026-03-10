@@ -126,55 +126,58 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def detect_signal(df: pd.DataFrame) -> Optional[Signal]:
     """
-    Erkennt RSI Mean Reversion Signal.
+    Erkennt RSI Mean Reversion Signal mit 5-Kerzen-Lookback.
 
-    LONG:  RSI war unter RSI_OVERSOLD (vorherige Kerze) und ist jetzt über RSI_OVERSOLD_EXIT
-           UND Preis ist unter oder nahe unterem Bollinger Band (innerhalb 0.5 × ATR)
+    LONG:  RSI war in den letzten 5 Kerzen unter RSI_OVERSOLD, jetzt über RSI_OVERSOLD_EXIT
+           UND Preis nahe/unter unterem BB (innerhalb 1.0 × ATR)
+           UND Preis über EMA50 (Aufwärtstrend)
 
-    SHORT: RSI war über RSI_OVERBOUGHT (vorherige Kerze) und ist jetzt unter RSI_OVERBOUGHT_EXIT
-           UND Preis ist über oder nahe oberem Bollinger Band (innerhalb 0.5 × ATR)
+    SHORT: RSI war in den letzten 5 Kerzen über RSI_OVERBOUGHT, jetzt unter RSI_OVERBOUGHT_EXIT
+           UND Preis nahe/über oberem BB (innerhalb 1.0 × ATR)
+           UND Preis unter EMA50 (Abwärtstrend)
     """
-    if len(df) < Config.BB_PERIOD + 5:
+    if len(df) < Config.BB_PERIOD + 7:
         return None
 
-    # -3: zwei Kerzen zurück, -2: letzte abgeschlossene, -1: laufende Kerze
-    prev = df.iloc[-3]
-    curr = df.iloc[-2]
+    curr     = df.iloc[-2]   # letzte abgeschlossene Kerze
+    lookback = df.iloc[-7:-2] # 5 Kerzen davor
 
-    rsi_prev = prev["rsi"]
     rsi_curr = curr["rsi"]
-    close = curr["close"]
+    close    = curr["close"]
     bb_upper = curr["bb_upper"]
     bb_lower = curr["bb_lower"]
-    atr = curr["atr"]
+    atr      = curr["atr"]
+    ema200   = curr["ema200"]
 
-    ema200 = curr["ema200"]
-
-    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr, ema200]):
+    if any(pd.isna(x) for x in [rsi_curr, bb_upper, bb_lower, atr, ema200]):
+        return None
+    if lookback["rsi"].isna().all():
         return None
 
-    in_uptrend = close > ema200    # Preis über EMA200 → Aufwärtstrend
-    in_downtrend = close < ema200  # Preis unter EMA200 → Abwärtstrend
+    in_uptrend   = close > ema200
+    in_downtrend = close < ema200
 
-    # LONG: RSI erholt sich aus Überverkauft-Zone UND Aufwärtstrend
-    rsi_long_trigger = rsi_prev < Config.RSI_OVERSOLD and rsi_curr > Config.RSI_OVERSOLD_EXIT
-    price_near_lower_bb = close <= bb_lower + 0.5 * atr
+    # LONG: RSI war in den letzten 5 Kerzen überverkauft, jetzt Erholung
+    rsi_was_oversold    = (lookback["rsi"] < Config.RSI_OVERSOLD).any()
+    rsi_long_trigger    = rsi_was_oversold and rsi_curr > Config.RSI_OVERSOLD_EXIT
+    price_near_lower_bb = close <= bb_lower + 1.0 * atr
 
     if rsi_long_trigger and price_near_lower_bb and in_uptrend:
         logger.info(
-            "LONG-Signal: RSI %.1f → %.1f | Close=%.2f | BB_lower=%.2f | EMA200=%.2f (Uptrend ✓)",
-            rsi_prev, rsi_curr, close, bb_lower, ema200,
+            "LONG-Signal: RSI-Lookback <%.0f, jetzt %.1f | Close=%.2f | BB_lower=%.2f | EMA50=%.2f ✓",
+            Config.RSI_OVERSOLD, rsi_curr, close, bb_lower, ema200,
         )
         return Signal.LONG
 
-    # SHORT: RSI fällt aus Überkauft-Zone UND Abwärtstrend
-    rsi_short_trigger = rsi_prev > Config.RSI_OVERBOUGHT and rsi_curr < Config.RSI_OVERBOUGHT_EXIT
-    price_near_upper_bb = close >= bb_upper - 0.5 * atr
+    # SHORT: RSI war in den letzten 5 Kerzen überkauft, jetzt Umkehr
+    rsi_was_overbought  = (lookback["rsi"] > Config.RSI_OVERBOUGHT).any()
+    rsi_short_trigger   = rsi_was_overbought and rsi_curr < Config.RSI_OVERBOUGHT_EXIT
+    price_near_upper_bb = close >= bb_upper - 1.0 * atr
 
     if rsi_short_trigger and price_near_upper_bb and in_downtrend:
         logger.info(
-            "SHORT-Signal: RSI %.1f → %.1f | Close=%.2f | BB_upper=%.2f | EMA200=%.2f (Downtrend ✓)",
-            rsi_prev, rsi_curr, close, bb_upper, ema200,
+            "SHORT-Signal: RSI-Lookback >%.0f, jetzt %.1f | Close=%.2f | BB_upper=%.2f | EMA50=%.2f ✓",
+            Config.RSI_OVERBOUGHT, rsi_curr, close, bb_upper, ema200,
         )
         return Signal.SHORT
 
