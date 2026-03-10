@@ -142,12 +142,11 @@ class IGApi:
                     MINUTE_15, MINUTE_30, HOUR, HOUR_2, HOUR_3, HOUR_4, DAY, WEEK, MONTH
         """
         path = f"/prices/{epic}"
-        params = {
-            "resolution": resolution,
-            "max": count,
-            "pageSize": 0,
-        }
-        data = self._get(path, version="3", params=params)
+        params = {"resolution": resolution, "max": count}
+        try:
+            data = self._get(path, version="3", params=params)
+        except IGApiError:
+            data = self._get(path, version="1", params=params)
         return data.get("prices", [])
 
     def get_market_details(self, epic: str) -> dict:
