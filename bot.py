@@ -1,6 +1,6 @@
 """
 IG Trading Bot V2 – Hauptschleife
-Strategie: RSI Mean Reversion + Bollinger Bands
+Strategie: Bollinger Band Mean Reversion
 
 Ablauf jedes Zyklus:
   1. Login-Status prüfen / erneuern
@@ -32,14 +32,13 @@ from strategy import (
 # Logging einrichten
 # ------------------------------------------------------------------
 
-logging.basicConfig(
-    level=getattr(logging, Config.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(Config.LOG_FILE, encoding="utf-8"),
-    ],
-)
+root_logger = logging.getLogger()
+root_logger.handlers.clear()
+root_logger.setLevel(getattr(logging, Config.LOG_LEVEL, logging.INFO))
+_fmt = logging.Formatter("%(asctime)s,%(msecs)03d | %(levelname)-8s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+_fh = logging.FileHandler(Config.LOG_FILE, encoding="utf-8")
+_fh.setFormatter(_fmt)
+root_logger.addHandler(_fh)
 logger = logging.getLogger("bot_v2")
 
 
@@ -99,7 +98,7 @@ class TradingBotV2:
 
             candles = self.api.get_candles(self.epic, self.resolution, Config.CANDLE_COUNT)
             df = candles_to_dataframe(candles)
-            if df.empty or len(df) < Config.BB_PERIOD + 5:
+            if df.empty or len(df) < Config.SUPERTREND_PERIOD + 5:
                 continue
 
             df = add_indicators(df)
@@ -133,7 +132,7 @@ class TradingBotV2:
 
         candles = self.api.get_candles(self.epic, self.resolution, Config.CANDLE_COUNT)
         df = candles_to_dataframe(candles)
-        if df.empty or len(df) < Config.BB_PERIOD + 10:
+        if df.empty or len(df) < Config.SUPERTREND_PERIOD + 10:
             logger.warning("Zu wenige Kerzen (%d). Signal-Analyse übersprungen.", len(df))
             return
 
@@ -145,7 +144,7 @@ class TradingBotV2:
 
         setup = generate_trade_setup(df, mid_price)
         if setup is None:
-            logger.debug("Kein Trade-Signal auf %s.", self.epic)
+            logger.info("Kein Trade-Signal auf %s.", self.epic)
             return
 
         valid, reason = self.risk.validate_setup(setup)
@@ -245,12 +244,11 @@ class TradingBotV2:
     def start(self) -> None:
         logger.info("=" * 60)
         logger.info("IG Trading Bot V2 startet")
-        logger.info("  Strategie:  RSI Mean Reversion + Bollinger Bands")
+        logger.info("  Strategie:  Supertrend + ATR")
         logger.info("  Epic:       %s", self.epic)
         logger.info("  Auflösung: %s", self.resolution)
-        logger.info("  BB Periode: %d | StdDev: %.1f", Config.BB_PERIOD, Config.BB_STDDEV)
-        logger.info("  RSI Oversold: <%.0f → >%.0f", Config.RSI_OVERSOLD, Config.RSI_OVERSOLD_EXIT)
-        logger.info("  RSI Overbought: >%.0f → <%.0f", Config.RSI_OVERBOUGHT, Config.RSI_OVERBOUGHT_EXIT)
+        logger.info("  Supertrend: Periode=%d | Multiplikator=%.1f", Config.SUPERTREND_PERIOD, Config.SUPERTREND_MULTIPLIER)
+        logger.info("  Stop:       %.1f × ATR | TP: %.1f × ATR | R/R=%.1f", Config.ATR_STOP_MULTIPLIER, Config.ATR_TP_MULTIPLIER, Config.ATR_TP_MULTIPLIER / Config.ATR_STOP_MULTIPLIER)
         logger.info("  Risiko:     %.1f%% pro Trade", Config.RISK_PER_TRADE_PCT)
         logger.info("  Interval:   %ds", Config.CHECK_INTERVAL_SECONDS)
         logger.info("  Account:    %s (%s)", Config.IG_ACCOUNT_ID, Config.IG_ACCOUNT_TYPE)

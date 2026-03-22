@@ -1,12 +1,12 @@
 """
-Strategie: RSI Mean Reversion + Bollinger Bands
+Strategie: Supertrend + ATR
 
 Logik:
-  LONG:  RSI erholt sich von Überverkauft (< 30 → > 35) UND Preis nahe/unter unterem BB
-  SHORT: RSI fällt von Überkauft (> 70 → < 65) UND Preis nahe/über oberem BB
+  LONG:  Supertrend wechselt von BEAR → BULL (Trend-Crossover)
+  SHORT: Supertrend wechselt von BULL → BEAR (Trend-Crossover)
 
-Ziel:    Rückkehr zum Bollinger-Mittelpunkt (BB-Mitte = 20-SMA)
 Stop:    1.5 × ATR(14) unter/über Einstieg
+TP:      3.0 × ATR(14) über/unter Einstieg  (R/R = 2.0)
 Breakeven: Stop auf Entry wenn Profit ≥ 1.0 × ATR
 """
 import logging
@@ -35,10 +35,8 @@ class TradeSetup:
     stop_loss: float
     take_profit: float
     atr: float
-    rsi: float
-    bb_upper: float
-    bb_lower: float
-    bb_mid: float
+    supertrend: float
+    trend: int  # 1 = BULL, -1 = BEAR
 
     def stop_distance(self) -> float:
         return abs(self.entry_price - self.stop_loss)
@@ -77,23 +75,14 @@ def candles_to_dataframe(candles: list[dict]) -> pd.DataFrame:
     return df
 
 
-def _rsi(series: pd.Series, period: int) -> pd.Series:
-    delta = series.diff()
+def _rsi(df: pd.DataFrame, period: int) -> pd.Series:
+    delta = df["close"].diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
     avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
-
-
-def _bollinger_bands(series: pd.Series, period: int, num_std: float) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Gibt (upper, mid, lower) zurück."""
-    mid = series.rolling(window=period).mean()
-    std = series.rolling(window=period).std()
-    upper = mid + num_std * std
-    lower = mid - num_std * std
-    return upper, mid, lower
 
 
 def _atr(df: pd.DataFrame, period: int) -> pd.Series:
@@ -111,66 +100,138 @@ def _atr(df: pd.DataFrame, period: int) -> pd.Series:
     return tr.ewm(alpha=1 / period, adjust=False).mean()
 
 
+def _supertrend(df: pd.DataFrame, period: int, multiplier: float) -> tuple[pd.Series, pd.Series]:
+    """
+    Berechnet Supertrend-Linie und Trend-Richtung.
+    Gibt (supertrend, trend) zurück. trend: 1=BULL, -1=BEAR
+    """
+    hl2 = (df["high"] + df["low"]) / 2
+    atr = _atr(df, period)
+
+    basic_upper = (hl2 + multiplier * atr).tolist()
+    basic_lower = (hl2 - multiplier * atr).tolist()
+    close = df["close"].tolist()
+
+    final_upper = basic_upper[:]
+    final_lower = basic_lower[:]
+    supertrend = [np.nan] * len(df)
+    trend = [0] * len(df)
+
+    for i in range(1, len(df)):
+        # Final Upper Band
+        if basic_upper[i] < final_upper[i - 1] or close[i - 1] > final_upper[i - 1]:
+            final_upper[i] = basic_upper[i]
+        else:
+            final_upper[i] = final_upper[i - 1]
+
+        # Final Lower Band
+        if basic_lower[i] > final_lower[i - 1] or close[i - 1] < final_lower[i - 1]:
+            final_lower[i] = basic_lower[i]
+        else:
+            final_lower[i] = final_lower[i - 1]
+
+        # Trend bestimmen
+        prev_st = supertrend[i - 1]
+        if np.isnan(prev_st) or prev_st >= final_upper[i - 1]:
+            # War in BEAR
+            if close[i] > final_upper[i]:
+                supertrend[i] = final_lower[i]
+                trend[i] = 1
+            else:
+                supertrend[i] = final_upper[i]
+                trend[i] = -1
+        else:
+            # War in BULL
+            if close[i] < final_lower[i]:
+                supertrend[i] = final_upper[i]
+                trend[i] = -1
+            else:
+                supertrend[i] = final_lower[i]
+                trend[i] = 1
+
+    return pd.Series(supertrend, index=df.index), pd.Series(trend, index=df.index)
+
+
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Fügt RSI, Bollinger Bands und ATR zum DataFrame hinzu."""
+    """Fügt Supertrend, Trend, ATR und RSI zum DataFrame hinzu."""
     df = df.copy()
-    df["rsi"] = _rsi(df["close"], Config.RSI_PERIOD)
-    bb_upper, bb_mid, bb_lower = _bollinger_bands(df["close"], Config.BB_PERIOD, Config.BB_STDDEV)
-    df["bb_upper"] = bb_upper
-    df["bb_mid"] = bb_mid
-    df["bb_lower"] = bb_lower
     df["atr"] = _atr(df, Config.ATR_PERIOD)
+    st, trend = _supertrend(df, Config.SUPERTREND_PERIOD, Config.SUPERTREND_MULTIPLIER)
+    df["supertrend"] = st
+    df["trend"] = trend
+    df["rsi"] = _rsi(df, Config.RSI_PERIOD)
     return df
 
 
 def detect_signal(df: pd.DataFrame) -> Optional[Signal]:
     """
-    Erkennt RSI Mean Reversion Signal.
+    Erkennt Handelssignale auf 2 Arten:
 
-    LONG:  RSI war unter RSI_OVERSOLD (vorherige Kerze) und ist jetzt über RSI_OVERSOLD_EXIT
-           UND Preis ist unter oder nahe unterem Bollinger Band (innerhalb 0.5 × ATR)
+    1. Supertrend-Crossover:
+       LONG:  Trend wechselt BEAR (-1) → BULL (1)
+       SHORT: Trend wechselt BULL (1) → BEAR (-1)
 
-    SHORT: RSI war über RSI_OVERBOUGHT (vorherige Kerze) und ist jetzt unter RSI_OVERBOUGHT_EXIT
-           UND Preis ist über oder nahe oberem Bollinger Band (innerhalb 0.5 × ATR)
+    2. RSI-Pullback (in-Trend):
+       LONG:  Supertrend=BULL und RSI < RSI_OVERSOLD (40)
+       SHORT: Supertrend=BEAR und RSI > RSI_OVERBOUGHT (60)
     """
-    if len(df) < Config.BB_PERIOD + 5:
+    if len(df) < Config.SUPERTREND_PERIOD + 5:
         return None
 
-    # -3: zwei Kerzen zurück, -2: letzte abgeschlossene, -1: laufende Kerze
     prev = df.iloc[-3]
     curr = df.iloc[-2]
 
-    rsi_prev = prev["rsi"]
-    rsi_curr = curr["rsi"]
-    close = curr["close"]
-    bb_upper = curr["bb_upper"]
-    bb_lower = curr["bb_lower"]
-    atr = curr["atr"]
-
-    if any(pd.isna(x) for x in [rsi_prev, rsi_curr, bb_upper, bb_lower, atr]):
+    if any(pd.isna(x) for x in [prev["trend"], curr["trend"], curr["atr"], curr["supertrend"]]):
         return None
 
-    # LONG: RSI erholt sich aus Überverkauft-Zone
-    rsi_long_trigger = rsi_prev < Config.RSI_OVERSOLD and rsi_curr > Config.RSI_OVERSOLD_EXIT
-    price_near_lower_bb = close <= bb_lower + 0.5 * atr
+    prev_trend = int(prev["trend"])
+    curr_trend = int(curr["trend"])
+    curr_rsi = float(curr["rsi"]) if not pd.isna(curr.get("rsi", float("nan"))) else float("nan")
 
-    if rsi_long_trigger and price_near_lower_bb:
-        logger.info(
-            "LONG-Signal: RSI %.1f → %.1f (Oversold-Recovery) | Close=%.2f | BB_lower=%.2f",
-            rsi_prev, rsi_curr, close, bb_lower,
-        )
+    logger.info(
+        "Indikatoren: Close=%.1f | Supertrend=%.1f | ATR=%.1f | Trend=%s | RSI=%.1f | prev_trend=%s",
+        curr["close"],
+        curr["supertrend"],
+        curr["atr"],
+        "BULL" if curr_trend == 1 else "BEAR",
+        curr_rsi if not np.isnan(curr_rsi) else -1,
+        "BULL" if prev_trend == 1 else "BEAR",
+    )
+
+    # 1) Supertrend-Crossover
+    if prev_trend == -1 and curr_trend == 1:
+        logger.info("LONG-Signal [Crossover]: Supertrend BEAR → BULL | Close=%.2f | RSI=%.1f", curr["close"], curr_rsi)
         return Signal.LONG
 
-    # SHORT: RSI fällt aus Überkauft-Zone
-    rsi_short_trigger = rsi_prev > Config.RSI_OVERBOUGHT and rsi_curr < Config.RSI_OVERBOUGHT_EXIT
-    price_near_upper_bb = close >= bb_upper - 0.5 * atr
-
-    if rsi_short_trigger and price_near_upper_bb:
-        logger.info(
-            "SHORT-Signal: RSI %.1f → %.1f (Overbought-Recovery) | Close=%.2f | BB_upper=%.2f",
-            rsi_prev, rsi_curr, close, bb_upper,
-        )
+    if prev_trend == 1 and curr_trend == -1:
+        logger.info("SHORT-Signal [Crossover]: Supertrend BULL → BEAR | Close=%.2f | RSI=%.1f", curr["close"], curr_rsi)
         return Signal.SHORT
+
+    # 2) RSI-Pullback in Trend-Richtung
+    if not np.isnan(curr_rsi):
+        if curr_trend == 1 and curr_rsi < Config.RSI_OVERSOLD:
+            logger.info(
+                "LONG-Signal [RSI-Pullback]: Supertrend=BULL | RSI=%.1f < %d | Close=%.2f",
+                curr_rsi, Config.RSI_OVERSOLD, curr["close"],
+            )
+            return Signal.LONG
+
+        if curr_trend == -1 and curr_rsi > Config.RSI_OVERBOUGHT:
+            logger.info(
+                "SHORT-Signal [RSI-Pullback]: Supertrend=BEAR | RSI=%.1f > %d | Close=%.2f",
+                curr_rsi, Config.RSI_OVERBOUGHT, curr["close"],
+            )
+            return Signal.SHORT
+
+        logger.info(
+            "Kein Signal: Trend=%s | RSI=%.1f (LONG<%.0f / SHORT>%.0f)",
+            "BULL" if curr_trend == 1 else "BEAR",
+            curr_rsi,
+            Config.RSI_OVERSOLD,
+            Config.RSI_OVERBOUGHT,
+        )
+    else:
+        logger.info("Kein Signal: RSI nicht verfügbar (Trend=%s)", "BULL" if curr_trend == 1 else "BEAR")
 
     return None
 
@@ -178,7 +239,7 @@ def detect_signal(df: pd.DataFrame) -> Optional[Signal]:
 def generate_trade_setup(df: pd.DataFrame, current_price: float) -> Optional[TradeSetup]:
     """
     Analysiert den DataFrame und erzeugt ein TradeSetup wenn ein Signal vorliegt.
-    Take Profit = Bollinger Band Mittellinie (Mean Reversion Ziel).
+    Stop: 1.5 × ATR | TP: 3.0 × ATR → R/R = 2.0
     """
     df = add_indicators(df)
     signal = detect_signal(df)
@@ -188,22 +249,22 @@ def generate_trade_setup(df: pd.DataFrame, current_price: float) -> Optional[Tra
 
     last = df.iloc[-2]
     atr = float(last["atr"])
-    bb_mid = float(last["bb_mid"])
-    bb_upper = float(last["bb_upper"])
-    bb_lower = float(last["bb_lower"])
+    supertrend_val = float(last["supertrend"])
+    trend_val = int(last["trend"])
 
     if atr == 0 or np.isnan(atr):
         logger.warning("ATR = 0 oder NaN, Signal verworfen")
         return None
 
     stop_dist = Config.ATR_STOP_MULTIPLIER * atr
+    tp_dist = Config.ATR_TP_MULTIPLIER * atr
 
     if signal == Signal.LONG:
         stop_loss = current_price - stop_dist
-        take_profit = bb_mid  # Ziel: Rückkehr zur Mitte
+        take_profit = current_price + tp_dist
     else:
         stop_loss = current_price + stop_dist
-        take_profit = bb_mid  # Ziel: Rückkehr zur Mitte
+        take_profit = current_price - tp_dist
 
     setup = TradeSetup(
         signal=signal,
@@ -211,14 +272,12 @@ def generate_trade_setup(df: pd.DataFrame, current_price: float) -> Optional[Tra
         stop_loss=round(stop_loss, 2),
         take_profit=round(take_profit, 2),
         atr=round(atr, 4),
-        rsi=round(float(last["rsi"]), 2),
-        bb_upper=round(bb_upper, 2),
-        bb_lower=round(bb_lower, 2),
-        bb_mid=round(bb_mid, 2),
+        supertrend=round(supertrend_val, 2),
+        trend=trend_val,
     )
 
     logger.info(
-        "Trade-Setup: %s | Entry=%.2f | SL=%.2f | TP=%.2f (BB-Mid) | ATR=%.4f | R/R=%.2f",
+        "Trade-Setup: %s | Entry=%.2f | SL=%.2f | TP=%.2f | ATR=%.4f | R/R=%.2f",
         signal.value,
         setup.entry_price,
         setup.stop_loss,
@@ -238,8 +297,6 @@ def check_trailing_stop(
 ) -> Optional[float]:
     """
     Setzt Stop auf Breakeven wenn Profit ≥ 1× ATR.
-    Kein weiteres Trailing – bei Mean Reversion ist das Ziel das BB-Mittel,
-    daher reicht Breakeven-Schutz.
     """
     breakeven_trigger = Config.ATR_BREAKEVEN_MULTIPLIER * atr
 
