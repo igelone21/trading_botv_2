@@ -36,8 +36,8 @@ class Config:
 
     # RSI-Pullback-Signal (in-Trend-Entries)
     RSI_PERIOD = 14
-    RSI_OVERSOLD = 40   # LONG-Signal wenn Supertrend=BULL und RSI < 40
-    RSI_OVERBOUGHT = 60  # SHORT-Signal wenn Supertrend=BEAR und RSI > 60
+    RSI_OVERSOLD = 45   # LONG-Signal wenn Supertrend=BULL und RSI < 45
+    RSI_OVERBOUGHT = 55  # SHORT-Signal wenn Supertrend=BEAR und RSI > 55
 
     # Risikomanagement
     RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))

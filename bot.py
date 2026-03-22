@@ -180,7 +180,7 @@ class TradingBotV2:
         limit_distance = abs(setup.take_profit - entry_price)
 
         logger.info(
-            "Öffne %s %s | Größe=%.2f | Entry≈%.2f | SL=%.2f | TP=%.2f (BB-Mid) | R/R=%.2f",
+            "Öffne %s %s | Größe=%.2f | Entry≈%.2f | SL=%.2f | TP=%.2f | R/R=%.2f",
             setup.signal.value,
             self.epic,
             size,
@@ -244,6 +244,7 @@ class TradingBotV2:
             logger.error("API-Fehler im Zyklus: %s", exc)
             if "UNAUTHENTICATED" in str(exc).upper() or "SESSION" in str(exc).upper():
                 self._logged_in = False
+                self._login_attempts = 0  # Reset damit Bot nicht nach 5 Versuchen stoppt
             notify_error(f"Zyklus-Fehler: {exc}")
         except Exception as exc:  # noqa: BLE001
             logger.exception("Unerwarteter Fehler: %s", exc)
