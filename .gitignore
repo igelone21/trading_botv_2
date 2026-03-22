@@ -3,5 +3,5 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-logs/*.log
+logs/
 data/
