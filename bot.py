@@ -123,11 +123,25 @@ class TradingBotV2:
     # Trade-Ausführung
     # ------------------------------------------------------------------
 
+    def _within_trading_hours(self) -> bool:
+        """Prüft ob wir innerhalb der DAX-Handelszeiten sind (Mo-Fr 09:30-17:15 CET)."""
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/Berlin"))
+        if now.weekday() >= 5:  # Samstag=5, Sonntag=6
+            return False
+        start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        end = now.replace(hour=17, minute=15, second=0, microsecond=0)
+        return start <= now <= end
+
     def try_open_trade(self, open_positions: list[dict]) -> None:
         """Prüft Signal und öffnet ggf. eine neue Position."""
+        if not self._within_trading_hours():
+            logger.info("Außerhalb der Handelszeiten (Mo-Fr 09:30-17:15). Kein neuer Trade.")
+            return
+
         allowed, reason = self.risk.can_open_new_trade(open_positions, self.epic)
         if not allowed:
-            logger.debug("Kein neuer Trade: %s", reason)
+            logger.info("Kein neuer Trade: %s", reason)
             return
 
         candles = self.api.get_candles(self.epic, self.resolution, Config.CANDLE_COUNT)
